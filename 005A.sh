@@ -1,0 +1,2 @@
+#!/bin/bash
+for i in `seq 1 23`; do qsub -cwd -b y -P reimandlab -N hundredkb$i -l h_rt=50000 -l h_vmem=25g -o /dev/null -e /dev/null "source /.mounts/labs/reimandlab/private/users/oocsenas/Anaconda/conda/etc/profile.d/conda.sh; conda activate r_env; Rscript /.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/005A_run_RF_100KB_windowerrors.R $i"; done
