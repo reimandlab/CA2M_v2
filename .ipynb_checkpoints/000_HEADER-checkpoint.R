@@ -1,11 +1,14 @@
-home_dir = "/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/"
+home_dir = ""
 setwd(home_dir)
+input_data_dir = ""
+
+PCAWG_MAF_path = ""
 
 packages = c("data.table", "ActivePathways", "parallel", "gridExtra", "grid", 
 			 "ggplot2", "mgsub", "gplots", "RColorBrewer", "GenomicRanges", 
 			 "rtracklayer", "BSgenome.Hsapiens.UCSC.hg38", "plyr", "randomForest", 
 			 "caret", "rCGH", "ggrastr", "cowplot", "pheatmap", "ggsci", "ggpubr",
-			 "ggrepel", "gtools", "ggnewscale")
+			 "ggrepel", "gtools", "ggnewscale", "stringi" ,"Gviz")
 
 lapply(packages, function(x) suppressMessages(require(x, character.only = TRUE)) )
 

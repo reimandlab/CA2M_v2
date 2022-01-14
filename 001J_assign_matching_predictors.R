@@ -1,6 +1,6 @@
-source("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/000_HEADER.R")
+source("000_HEADER.R")
 
-#Load in predictors
+#Load in all megabase-scale predictors
 TCGA_ATAC = fread(pff("data/001C_TCGA_ATACSeq_1MBwindow_processed.csv"))[,-c(1,2)]
 ENCODE_ATAC = fread(pff("data/001D_ENCODE_ATACSeq_1MBwindow_processed.csv"))[,-c(1,2)]
 GEO_Brain_ATAC = fread(pff("data/001E_GEO_brain_ATACSeq_processed_1MB.csv"))[,-c(1,2)]
@@ -11,7 +11,7 @@ GEO_NHM1_ATAC = fread(pff("data/001E_GEO_NHM1_ATACSeq_processed_1MB.csv"))[,-c(1
 GEO_Prostate_ATAC = fread(pff("data/001E_GEO_Prostate_ATACSeq_processed_1MB.csv"))[,-c(1,2)]
 RT = fread(pff("data/001F_ENCODE_repliseq_1MBwindow_processed.csv"))[,-c(1,2)]
 
-
+#Assign predictors to matching PCAWG cancer types in terms of tissue type
 `PANCAN` = ""           
 
 `Biliary-AdenoCA` = c(colnames(TCGA_ATAC)[221:237],
@@ -82,6 +82,8 @@ RT = fread(pff("data/001F_ENCODE_repliseq_1MBwindow_processed.csv"))[,-c(1,2)]
 
 `Uterus-AdenoCA` = c(colnames(TCGA_ATAC)[c(371:381)], colnames(ENCODE_ATAC)[c(39, 162)])  
 
+#Create dictionary/list for each PCAWG cancer type with matching predictors
 Matching_preds = list(`PANCAN`=`PANCAN`,`Biliary-AdenoCA`=`Biliary-AdenoCA`,`Bone-Leiomyo`=`Bone-Leiomyo`,`Bone-Osteosarc`=`Bone-Osteosarc`,`Breast-AdenoCa`=`Breast-AdenoCa`, `CNS-GBM`=`CNS-GBM`,`CNS-Medullo`=`CNS-Medullo`,`CNS-PiloAstro`=`CNS-PiloAstro`,`ColoRect-AdenoCA`=`ColoRect-AdenoCA`,`Eso-AdenoCa`=`Eso-AdenoCa`, `Head-SCC`=`Head-SCC`,`Kidney-ChRCC`=`Kidney-ChRCC`,`Kidney-RCC`=`Kidney-RCC`,`Liver-HCC`=`Liver-HCC`,`Lung-AdenoCA`=`Lung-AdenoCA`,`Lung-SCC`=`Lung-SCC`,`Lymph-BNHL`=`Lymph-BNHL`,`Lymph-CLL`=`Lymph-CLL`,`Ovary-AdenoCA`=`Ovary-AdenoCA`,`Panc-AdenoCA`=`Panc-AdenoCA`,`Panc-Endocrine`=`Panc-Endocrine`,`Prost-AdenoCA`=`Prost-AdenoCA`,`Skin-Melanoma`=`Skin-Melanoma`,`Stomach-AdenoCA`=`Stomach-AdenoCA`,`Thy-AdenoCA`=`Thy-AdenoCA`,`Uterus-AdenoCA`=`Uterus-AdenoCA`)
 
+#Save dictionary of matching predictors
 saveRDS(Matching_preds, pff("data/001J_Matching_predictors_dictionary.RDS"))

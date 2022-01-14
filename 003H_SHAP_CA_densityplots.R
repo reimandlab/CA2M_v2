@@ -1,5 +1,6 @@
-source("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/000_HEADER.R")
+source("000_HEADER.R")
 
+#Load in required python packages to load and plot SHAP values using reticulate
 library(reticulate)
 shap = import("shap")
 plt = import('matplotlib.pyplot')
@@ -31,40 +32,71 @@ SHAP_cancer_types = unlist(lapply(list.files(pff("data/003F_RF_SHAP_Results/")),
 
 #Load in predictors
 Preds = fread(pff("data/001G_All_preds_1MB.csv"))[, -c(1,2)]
-                                                 
+
+#Get data for SHAP vs. CA plot								  
 plot_SHAP_plot = function(cohort_index, top_N_predictors){
    	
+	#Get cohort name
+	print(cohort_index)
 	cohort_name = colnames(importance)[-1][cohort_index]
+	
+	#Get predictor names
 	predictors = importance[[1]]
 	
-	#Remove hypermutated windows from lymphoma and leukemia
-    if(cohort_name %in% c("Lymph-CLL", "Lymph-BNHL")){
-        Preds = Preds[-c(292, 2438)]
-    }
-	
-	#Get permutation test p-values for each predictor
+	#Get predictor importances
     data = importance[[cohort_index + 1]]
+	
+	#Get predictor importances from permutation test
     permutation_importances_dt = as.data.table(do.call("rbind.data.frame", 
 									 lapply(list.files(p_val_paths[which(p_val_cancer_types == cohort_name)], 
 													   full.name = T), fread)))
+	#Get permutation test p-values for each predictor (fraction of times permuted importance is more significant than actual importance)
     predictor_pvals = unlist(lapply(1:length(predictors), 
 									function(x)  sum(data[x] < permutation_importances_dt[[x]])/1000))
-									
+	
+	#Predictor are significant if they are more important all 1000 permuted values
     significance = ifelse(predictor_pvals == 0, "*", "")
     names(significance) = predictors
+									
+	#Keep top N significant predictors								
 	top_N_predictors = min(top_N_predictors, sum(significance == "*"))
 	
-	#Get predictor importance means and sd from bootstrap experiment for significant predictor                     
+	#Get predictor importances from bootstrap test
     Bootstrap_dt = as.data.table(do.call("rbind.data.frame", 
 										 lapply(list.files(bootstrap_paths[which(bootstrap_cancer_types == cohort_name)], 
 														   full.name = T), fread)))
+	#Get the importance mean from the boostrap test for all significant predictors								
     sig_predictor_means = unlist(lapply(which(significance == "*"), 
 										function(x) mean(Bootstrap_dt[[x]])))                                   
-    top_predictors = names(sig_predictor_means[order(sig_predictor_means, 
-													 decreasing = T)][1:top_N_predictors])
-
-	top_predictor_descriptions = predictor_descriptions$Predictor_descriptions[match(top_predictors, predictor_descriptions$Predictor_names)]	
     
+	#Rank significant predictors by bootstrap mean
+	top_predictors = names(sig_predictor_means[order(sig_predictor_means, 
+													 decreasing = T)][1:top_N_predictors])
+										
+	#Get predictor importance means and sd from bootstrap experiment for each significant predictor                     
+    top_predictor_means = as.numeric(sig_predictor_means[order(sig_predictor_means, 
+															   decreasing = T)][1:top_N_predictors])
+    top_predictor_SDs = unlist(lapply(top_predictors, function(x) sd(Bootstrap_dt[[x]])))								
+
+    #Get predictor categories from supplementary file
+    top_predictor_categories = paste0(predictor_descriptions$Predictor_categories[match(top_predictors, 
+																	   predictor_descriptions$Predictor_names)], " CA")
+	top_predictor_categories = ifelse(top_predictor_categories=="RT CA", 
+									  "Replication timing", top_predictor_categories)
+	
+	#Check if each predictor is matching the tissue type of cohort
+    top_predictor_matching = ifelse(top_predictors %in% matching_list[[cohort_name]], 
+									"Matching", 
+									"Non-Matching")
+	
+	#Get colour category of each predictor based on predictor category and matching status								  
+    top_predictor_fill = unlist(lapply(1:length(top_predictors), 
+									   function(x) ifelse(top_predictor_matching[x]=="Matching", 
+														  paste(top_predictor_categories[x], "from matching tissue", sep = " "), 
+														  paste(top_predictor_categories[x], " from non-matching tissue", sep = ""))))	
+	#Get predictor descriptions								   
+	top_predictor_descriptions = predictor_descriptions$Predictor_descriptions[match(top_predictors, predictor_descriptions$Predictor_names)]	
+	
     #Load in SHAP values
     SHAP_dt = fread(SHAP_paths[which(SHAP_cancer_types == cohort_name)])
 										
@@ -89,9 +121,10 @@ plot_SHAP_plot = function(cohort_index, top_N_predictors){
     
     return(plot_dt.m)}
                                       
-
+#Get SHAP vs. CA data for all cancer types
 plot_dt = as.data.table(do.call("rbind.data.frame",lapply(seq(26)[-8], plot_SHAP_plot, 5)))
 
+#Keep data for only core cancer types									
 cancer_types_to_keep = c("Breast-AdenoCa", "Prost-AdenoCA", "Kidney-RCC", "Skin-Melanoma", 
 						 "Uterus-AdenoCA","Eso-AdenoCa", 
 						 "Stomach-AdenoCA","CNS-GBM", "Lung-SCC", "ColoRect-AdenoCA", "Biliary-AdenoCA", 
@@ -99,7 +132,8 @@ cancer_types_to_keep = c("Breast-AdenoCa", "Prost-AdenoCA", "Kidney-RCC", "Skin-
 						   "Lymph-BNHL",  "Liver-HCC", "Thy-AdenoCA")					  
 
 plot_dt_select = plot_dt[cohort_name %in% cancer_types_to_keep]
-
+									
+#Separate data based on predictor type 									
 plot_dt_primarycancer = plot_dt_select[type == "Primary cancer"]
 plot_dt_normal_tissue = plot_dt_select[type == "Normal tissue"]									
 plot_dt_cancer_cell_line = plot_dt_select[type == "Cancer cell line"]
@@ -111,7 +145,7 @@ plot_dt_RT_early = plot_dt_RT[which(phases %in% c("G1", "S1", "S2"))]
 plot_dt_RT_late = plot_dt_RT[which(phases %in% c("S3", "S4", "G2"))]
 
 									
-#Create faceted plot
+#Create faceted plot for different predictor types (data.table long-form)
 plot_dt_facet = as.data.table(rbind.data.frame(plot_dt_primarycancer,
 											   plot_dt_normal_tissue,
 											   plot_dt_cancer_cell_line,
@@ -124,45 +158,35 @@ plot_dt_facet$facet = c(rep("Primary cancer", nrow(plot_dt_primarycancer)),
 						rep("RT Early", nrow(plot_dt_RT_early)), 
 						rep("RT Late", nrow(plot_dt_RT_late)))
 
-plot_dt_facet$facet = factor(plot_dt_facet$facet, levels = c("Primary cancer", "Normal tissue", "RT Early", "RT Late"))									
+#Plot SHAP vs. CA density plot					   
+plot_dt_facet$facet = factor(plot_dt_facet$facet, 
+							 levels = c("Primary cancer", "Normal tissue", "RT Early", "RT Late"))									
 pdf(pff("data/003H_SHAP_facet_densityplot.pdf"), height = 3, width = 8.5)                                      
 ggplot(plot_dt_facet, aes(y = Input, x = SHAP))+
-	facet_wrap(~facet, scales = "free", nrow = 1)+
-    geom_hex(bins = 50)+
-    geom_smooth(method = "loess", span = 0.6, se = F)+
+	facet_wrap(~facet, scales = "free", nrow = 1)+ #Facet based on predictor type
+    geom_hex(bins = 50)+ #Add hexagonal desnity plot
+    geom_smooth(method = "loess", span = 0.6, se = F)+ #Add loess smooth line
     theme_bw()+
-    scale_fill_gsea()+
-	labs(y = "Input(log1p, scaled)")
+    scale_fill_gsea()+ #Control colours
+	labs(y = "Input(log1p, scaled)") #Add labels
 dev.off()
-									
-									
-									
-# pdf(pff("data/003H_CART_SHAP_densityplots/1.pdf"), height = 3, width = 3)                                      
-# ggplot(plot_dt_TCGA, aes(y = Input, x = SHAP))+
-#     geom_hex(bins = 50)+
-#     geom_smooth(method = "loess", se = F)+
-#     theme_bw()+
-#     scale_fill_gsea()+
-# 	labs(y = "TCGA CA(log1p, scaled)")
-# dev.off()									
-			
-									
-#Numbers
-cor(plot_dt_primarycancer$Input, plot_dt_primarycancer$SHAP, method="spearman")
+
+#Correlations for the different plots
+cor(plot_dt_primarycancer$Input, plot_dt_primarycancer$SHAP, method = "spearman")
 # [1] -0.7366388
-cor.test(plot_dt_primarycancer$Input, plot_dt_primarycancer$SHAP, method="spearman")$p.val
+cor.test(plot_dt_primarycancer$Input, plot_dt_primarycancer$SHAP, method = "spearman")$p.val
 # [1] 0
-cor(plot_dt_normal_tissue$Input, plot_dt_normal_tissue$SHAP, method="spearman")
+cor(plot_dt_normal_tissue$Input, plot_dt_normal_tissue$SHAP, method = "spearman")
 # [1] -0.7855442
-cor.test(plot_dt_normal_tissue$Input, plot_dt_normal_tissue$SHAP, method="spearman")$p.val
+cor.test(plot_dt_normal_tissue$Input, plot_dt_normal_tissue$SHAP, method = "spearman")$p.val
 # [1] 0	
-cor(plot_dt_RT_early$Input, plot_dt_RT_early$SHAP, method="spearman")
+cor(plot_dt_RT_early$Input, plot_dt_RT_early$SHAP, method = "spearman")
 # [1] -0.8375119
-cor.test(plot_dt_RT_early$Input, plot_dt_RT_early$SHAP, method="spearman")$p.val
+cor.test(plot_dt_RT_early$Input, plot_dt_RT_early$SHAP, method = "spearman")$p.val
 # [1] 0									
-cor(plot_dt_RT_late$Input, plot_dt_RT_late$SHAP, method="spearman")
+cor(plot_dt_RT_late$Input, plot_dt_RT_late$SHAP, method = "spearman")
 # [1] 0.7515782
-cor.test(plot_dt_RT_late$Input, plot_dt_RT_late$SHAP, method="spearman")$p.val
+cor.test(plot_dt_RT_late$Input, plot_dt_RT_late$SHAP, method = "spearman")$p.val
 # [1] 0													
 									
 									

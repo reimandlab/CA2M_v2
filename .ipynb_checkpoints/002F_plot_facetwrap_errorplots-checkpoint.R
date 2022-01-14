@@ -1,37 +1,39 @@
-source("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/000_HEADER.R")
+source("000_HEADER.R")
 
 source(pff("/bin/999_run_randomforest_experiment.R"))
 
-#Get normal and tumor predictors
+#Get normal tissue CA + RT Predictors
 Normal_preds = fread(pff("data/001G_Normal_preds_1MB.csv"))
 RT = fread(pff("data/001F_ENCODE_repliseq_1MBwindow_processed.csv"))[,-c(1,2)]
 Normal_preds = as.data.table(cbind.data.frame(Normal_preds[,-c(1,2)], RT))
 
+#Get primary cancer CA + RT Predictors
 Tumor_preds = fread(pff("data/001G_PrimaryTumor_preds_1MB.csv"))
 RT = fread(pff("data/001F_ENCODE_repliseq_1MBwindow_processed.csv"))[,-c(1,2)]
 Tumor_preds = as.data.table(cbind.data.frame(Tumor_preds[,-c(1,2)], RT))
 
-#Load in data paths
+#Load in data paths for observed vs. expected RF outputs
 tumour_paths = list.files(pff("data/002D_tumourCAplusRT_RF_obsvsexpected"), full.name = T)
 normal_paths = list.files(pff("data/002E_normalCAplusRT_RF_obsvsexpected"), full.name = T)
 
-#Get cancer types
+#Get cancer types of interest for plotting
 cohort_names = unlist(lapply(list.files(pff("data/002D_tumourCAplusRT_RF_obsvsexpected")),
                            function(x) unlist(strsplit(x, split = ".csv"))[1]))
 
 cohorts_to_examine = c("PANCAN", "Breast-AdenoCa", "Prost-AdenoCA", "Eso-AdenoCa", "Liver-HCC")
                            
-#Load in errors and put into DT
+#Load in observed vs. expected values and put into data table for cancer types of interest
 get_dt = function(cohort_name, paths, Preds, type){
         
-    cohort_index = which(cohort_names == cohort_name)
+    cohort_index = which(cohort_names == cohort_name) #Get index of cohort of interest
     
-    data = fread(paths[cohort_index])
+    data = fread(paths[cohort_index]) #Load in observed vs. expected
     
-    R2 = (cor(data$observed,data$predicted))**2
+    R2 = (cor(data$observed,data$predicted))**2 #Get R2 accuracy score
     
-    adjR2=adjust_R2(R2, nrow(Preds), ncol(Preds))  
+    adjR2 = adjust_R2(R2, nrow(Preds), ncol(Preds)) #Get adjusted R2 accuracy score
     
+	#Combine required data into one data table
     dt = as.data.table(cbind.data.frame(observed = data$observed, 
 										predicted = data$predicted, 
 										cancer_type = cohort_name, 
@@ -44,12 +46,15 @@ get_dt = function(cohort_name, paths, Preds, type){
 
 }
 
+#Get required data for models trained on primary cancer CA + RT
 tumour_dt = as.data.table(do.call("rbind.data.frame", 
 								  lapply(cohorts_to_examine, get_dt, tumour_paths, Tumor_preds, "Tumour")))
-										
+
+#Get required data for models trained on normal tissue CA + RT
 normal_dt = as.data.table(do.call("rbind.data.frame", 
 								  lapply(cohorts_to_examine, get_dt, normal_paths, Normal_preds, "Normal")))
-                           
+							 
+#Combine into one data table                          
 full_dt = as.data.table(rbind.data.frame(tumour_dt, normal_dt))                           
                            
                            
@@ -128,19 +133,19 @@ facet_wrap_custom <- function(..., scale_overrides = NULL) {
 
 ################################################################################################################                           
                            
-                           
+#Create observed vs. expected scatterplots for cancer/normal tissue RF models                           
 pdf(pff("data/002F_facetwrap_errorplots.pdf"), width = 5.5, height = 3)
 ggplot(full_dt, aes(x = observed, y = predicted))+
-    rasterise(geom_point(alpha = 0.4, size = 0.3), dpi = 400)+
-    geom_smooth(method = 'loess', span = 0.9, size = 0.5)+                      
+    rasterise(geom_point(alpha = 0.4, size = 0.3), dpi = 400)+ #Rasterize scatterplots
+    geom_smooth(method = 'loess', span = 0.9, size = 0.5)+ #Add loess line                     
     theme_bw()+
-    labs(x = "Observed mutations per Mb", y = "Predicted mutations per Mb")+
-    theme(axis.title = element_text(size = 7),
+    labs(x = "Observed mutations per Mb", y = "Predicted mutations per Mb")+ #Add labels
+    theme(axis.title = element_text(size = 7), #Control text
         axis.text.y = element_text(size = 5, colour = "black"),
         axis.text.x = element_text(size = 5, colour = "black", angle = 30, hjust = 1),
          strip.text = element_text(size = 6))+
-    facet_wrap(~predictor_set, nrow = 2, scales = "free")+                       
-    facet_wrap_custom(~predictor_set, nrow = 2, scales = "free", scale_overrides = list(                      
+    facet_wrap(~predictor_set, nrow = 2, scales = "free")+ #Facet based on predictors and cancer type                     
+    facet_wrap_custom(~predictor_set, nrow = 2, scales = "free", scale_overrides = list(  #Control x and y scales for each facet                      
         scale_override(1, scale_y_continuous(breaks = seq(4000, 20000, 4000), limits=c(4000, 20000))),
         scale_override(2, scale_y_continuous(breaks = seq(300, 900, 200), limits=c(300, 950))),
         scale_override(3, scale_y_continuous(breaks = seq(100, 600, 100), limits=c(100, 600))),

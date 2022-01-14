@@ -1,8 +1,6 @@
-source("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/000_HEADER.R")
+source("000_HEADER.R")
 
 source(pff("/bin/999_process_data.R"))
-
-input_data_dir = "/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/INPUT_DATA/"
 
 #Import human genome build hg38                            
 genome = BSgenome.Hsapiens.UCSC.hg38
@@ -13,24 +11,29 @@ ch = import.chain(paste0(input_data_dir, "/hg19ToHg38.over.chain"))
 
 #Function to get windowed track
 process_ATACSeq_dataset = function(paths, names, window_size){
-	
+	   
+	#Bin genome into windows
 	gr.windows = tileGenome(seqinfo(Hsapiens)[paste0("chr", 1:22)], 
 							tilewidth = window_size, 
 							cut.last.tile.in.chrom = TRUE)
-
+	
+    #Function to convert bigwig to binned average for each window
 	merge_tracks = function(path){
-		print(which(paths == path))
+		
+		#Load in bigwig
 		gr.data = import(path)
 
 		#Liftover to hg38
 		gr.data_hg38 = unlist(liftOver(gr.data, ch))
 		
+		#Create binned average track 
 		windowed_track = create_windowed_track(gr.data_hg38, window_size)[[3]] #Use function from script to convert to windowed track
 
 	return(windowed_track)
 
     }
-
+	
+    #Merge windowed tracks from all samples into one data frame
     scores = as.data.table(do.call("cbind", mclapply(paths, merge_tracks, mc.cores = 4)))
     colnames(scores) = names
     scores_dt = as.data.table(cbind.data.frame(chr = as.character(seqnames(gr.windows)), 

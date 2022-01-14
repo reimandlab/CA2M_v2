@@ -1,9 +1,9 @@
-source("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/000_HEADER.R")
+source("000_HEADER.R")
 
-input_data_dir = "/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/INPUT_DATA/"
-
-#Load in sample size dataset
+#Load in PCAWG MAF file
 PCAWG_mutations_dt_hg38_SNP = fread(pff("001A_PCAWG_mutations_hg38.csv"))
+
+#Create lookup table for cohort sample sizes
 PCAWG_sample_table = PCAWG_mutations_dt_hg38_SNP[, 
 												 .(Cohort_size = uniqueN(Donor_ID)), 
 												 by = Project_Code][order(Cohort_size, decreasing = T)]

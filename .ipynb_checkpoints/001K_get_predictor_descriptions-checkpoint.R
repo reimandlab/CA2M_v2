@@ -1,7 +1,6 @@
-source("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/000_HEADER.R")
-input_data_dir = "/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/INPUT_DATA/"
+source("000_HEADER.R")
 
-#Load in predictors
+#Load in all megabase-scale predictors
 TCGA_ATAC = fread(pff("data/001C_TCGA_ATACSeq_1MBwindow_processed.csv"))[,-c(1,2)]
 ENCODE_ATAC = fread(pff("data/001D_ENCODE_ATACSeq_1MBwindow_processed.csv"))
 GEO_Brain_ATAC = fread(pff("data/001E_GEO_brain_ATACSeq_processed_1MB.csv"))[,-c(1,2)]
@@ -12,7 +11,7 @@ GEO_NHM1_ATAC = fread(pff("data/001E_GEO_NHM1_ATACSeq_processed_1MB.csv"))[,-c(1
 GEO_Prostate_ATAC = fread(pff("data/001E_GEO_Prostate_ATACSeq_processed_1MB.csv"))[,-c(1,2)]
 RT = fread(pff("data/001F_ENCODE_repliseq_1MBwindow_processed.csv"))[,-c(1,2)]
 
-#Get descriptions for each dataset
+#Set descriptions and categories for each predictor in each dataset
 TCGA_ATAC_descriptions = unlist(lapply(colnames(TCGA_ATAC), function(x) unlist(strsplit(x, split = " "))[1]))
 TCGA_ATAC_categories = rep("Primary cancer", ncol(TCGA_ATAC))
 
@@ -55,6 +54,7 @@ RT_Description = c(paste0("Embryonic stem cell ", cell_phases),
 				   paste0("SK-N-SH ", cell_phases))
 RT_categories = rep("RT", 96)
 
+#Get names, descriptions, categories of all predictors
 Predictor_names = c(colnames(TCGA_ATAC), colnames(ENCODE_ATAC), colnames(GEO_Brain_ATAC), colnames(GEO_CLL_ATAC),
 					colnames(GEO_HEK_ATAC), colnames(GEO_lymphoma_ATAC), colnames(GEO_NHM1_ATAC),
 					colnames(GEO_Prostate_ATAC), colnames(RT))
@@ -67,10 +67,14 @@ Predictor_categories = c(TCGA_ATAC_categories, ENCODE_ATAC_categories, GEO_Brain
 						GEO_HEK_categories, GEO_lymphoma_categories, GEO_NHM1_categories, GEO_Prostate_categories,
 						RT_categories)
 
-matching_predictor_dict = readRDS(pff("data/001J_Matching_predictors_dictionary.RDS"))									 
+#Load dictionary of matching cancer type of each predictor
+matching_predictor_dict = readRDS(pff("data/001J_Matching_predictors_dictionary.RDS"))		
+									 
+#Get matching cancer types for each predictor									 
 Predictor_matching_PCAWG = unlist(lapply(Predictor_names, 
 										 function(x) paste(names(matching_predictor_dict)[grep(x, matching_predictor_dict)], collapse = ", ")))
-										 
+
+#Get original study where each predictor comes from										 
 Predictor_study = c(rep("https://pubmed.ncbi.nlm.nih.gov/30361341/", ncol(TCGA_ATAC)), 
 				    rep("https://pubmed.ncbi.nlm.nih.gov/32728249/", ncol(ENCODE_ATAC)), 
 				    rep("https://pubmed.ncbi.nlm.nih.gov/29945882/", ncol(GEO_Brain_ATAC)), 
@@ -81,9 +85,12 @@ Predictor_study = c(rep("https://pubmed.ncbi.nlm.nih.gov/30361341/", ncol(TCGA_A
 					rep("https://pubmed.ncbi.nlm.nih.gov/32690948/", ncol(GEO_Prostate_ATAC)), 
 					rep("https://www.pnas.org/content/107/1/139", ncol(RT)))
 
+#Combine all information into one data table
 predictor_dt = cbind.data.frame(Predictor_names, 
 								Predictor_descriptions, 
 								Predictor_categories, 
 							    Predictor_matching_PCAWG, 
 							    Predictor_study)
+										 
+#Save predictor supplementary data table										 
 fwrite(predictor_dt, pff("data/001K_predictor_descriptions.csv"))

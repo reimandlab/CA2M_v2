@@ -1,13 +1,8 @@
-date_tag = "210317"
-source(paste0("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M/", 
-# source(paste0("/.mounts/labs/reimandlab/private/users/jreimand/CA2M/", 
-		date_tag, 
-		"/bin/000_HEADER.R"))
+source("000_HEADER.R")
 
 source(pff("/bin/999_process_data.R"))
 	   
-input_data_dir = "/.mounts/labs/reimandlab/private/users/oocsenas/CA2M/INPUT_DATA/"
-
+#Load in Repli-seq track paths and names
 RepliSeq_paths = list.files("/.mounts/labs/reimandlab/private/users/oocsenas/ChrAcc2MutData/RepliSeq_Tracks/",full.names=T)[-c(97,98)]
 RepliSeq_names = unlist(lapply(list.files("/.mounts/labs/reimandlab/private/users/oocsenas/ChrAcc2MutData/RepliSeq_Tracks/"),
 	function(x) unlist(strsplit(x,split=".bigWig"))[1]))[-c(97,98)]
@@ -15,13 +10,14 @@ RepliSeq_names = unlist(lapply(list.files("/.mounts/labs/reimandlab/private/user
 #Import human genome build hg38                            
 genome = BSgenome.Hsapiens.UCSC.hg38
                             
-#Import liftover files
-path = system.file(package = "liftOver", "extdata", "hg19ToHg38.over.chain")
-ch = import.chain(paste0(input_data_dir, "/hg19ToHg38.over.chain"))
+#Get supplementary data
+supp = fread("/.mounts/labs/reimandlab/private/users/oocsenas/ChrAcc2MutData/repliseq_supplementary.tsv")
+supp_file_names = unlist(lapply(supp$Files, function(x) unlist(strsplit(x,split="/"))[3]))
 
 #Function to average individual tracks                           
 merge_tracks = function(bigwig_path, window_size){
-
+	
+	#Import bigwig
 	gr.data = import(bigwig_path)
 
 	#Liftover to hg38
@@ -37,24 +33,26 @@ merge_tracks = function(bigwig_path, window_size){
 #Function to process and merge tracks into one data table                            
 process_repliseq_data = function(paths, names, window_size){
     
+	#Bin genome into windows
     gr.windows = tileGenome(seqinfo(Hsapiens)[paste("chr",1:22,sep = "")], 
 							tilewidth = window_size, 
 							cut.last.tile.in.chrom = TRUE)
     
+	#Merge windowed tracks from all samples into one data frame
     scores= as.data.table(do.call("cbind",mclapply(paths, 
 													function(x) merge_tracks(x, window_size), 
 													mc.cores = 8)))
     colnames(scores) = names
+	
+	#Add genomic coordinates
     scores_dt = as.data.table(cbind.data.frame(chr = as.character(seqnames(gr.windows)), 
 											   start = start(gr.windows), 
 											   scores))
-    
+    #Filter out windows with less than or equal to 80% mappability
     scores_mappable = filter_windows_with_UMAP(scores_dt, window_size)
 	
-	#Get supplementary data
-	supp = fread("/.mounts/labs/reimandlab/private/users/oocsenas/ChrAcc2MutData/repliseq_supplementary.tsv")
-	supp_file_names = unlist(lapply(supp$Files, function(x) unlist(strsplit(x,split="/"))[3]))
 
+	#Add track name descriptions to column names
 	colnames(scores_mappable)[-c(1,2)] = make.names(unlist(lapply(colnames(scores_mappable)[-c(1,2)], 
 										function(x) supp[grep(x, supp$Files)]$Description)), 
 										unique = T)
@@ -63,8 +61,9 @@ process_repliseq_data = function(paths, names, window_size){
 	colnames(scores_mappable)[-c(1,2)] = gsub("\\.", " ", colnames(scores_mappable)[-c(1,2)])  
     
     return(scores_mappable)
-}      
-                                                                               
+}  
+														   
+#Create windowed tracks for different window sizes                                                                              
 fwrite(process_repliseq_data(RepliSeq_paths, RepliSeq_names, 100000), 
 	   pff("/data/001F_ENCODE_repliseq_100KBwindow_processed.csv"))                             
 fwrite(process_repliseq_data(RepliSeq_paths, RepliSeq_names, 1000000), 

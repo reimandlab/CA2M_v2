@@ -1,25 +1,32 @@
-source("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/000_HEADER.R")
+source("000_HEADER.R")
 
 library(chemometrics)
+
+#Get paths to RF model errors from 100KB-scale analysis
 error_dt_paths = list.files(pff("/data/005A_100KB_RF_errorDT_results"), full.names = T)
 error_dt_cancertypes = unlist(lapply(list.files(pff("/data/005A_100KB_RF_errorDT_results")), 
 											  function(x) unlist(strsplit(x, split = ".csv"))[1]))
                            
-                                   
+#Function to get p-value of error for each window                                
 get_pvals = function(cohort_index, log){
-    print(cohort_index)
-    project_code = error_dt_cancertypes[cohort_index]
+
+	#Get project code
+	project_code = error_dt_cancertypes[cohort_index]
     
+	#Load in data table of observed and predicted mutations
     error_dt = fread(error_dt_paths[cohort_index])
     
+	#Define errors as observed - predicted mutations
     error_dt$errors = as.numeric(error_dt$observed - error_dt$predicted)
-	#Trim extreme values for mean and sd
+
+	#Define p-values using one-tailed normal distribution (only higher observed than predicted mutations get significant p-values)
 	p_values = pnorm(error_dt$errors, 
 					    mean = mean(error_dt$errors),
 						sd = sd(error_dt$errors),
 						lower.tail = F, 
 						log.p = log) #Natural log
-
+	
+	#Add genomic coordinates for 100KB windows
     if(cohort_index == 1){
         return(cbind.data.frame(chr = error_dt$chr, 
 								start = error_dt$start, 
@@ -39,7 +46,7 @@ log_p_val_dt = as.data.table(do.call("cbind.data.frame", lapply(c(1:23), get_pva
 colnames(log_p_val_dt)[-c(1, 2)] = error_dt_cancertypes[c(1:23)]                                   
 fwrite(log_p_val_dt, pff("data/005C_logpvaldt_100KBerrorwindows.csv"))
 
-#Save q-val of errors
+#Save q-val of errors using FDR p-value adjustment
 q_val_dt = as.data.table(cbind.data.frame(p_val_dt[,c(1, 2)], 
 										  apply(p_val_dt[,-c(1, 2)], 
 												2, 
@@ -47,7 +54,7 @@ q_val_dt = as.data.table(cbind.data.frame(p_val_dt[,c(1, 2)],
 												method = "fdr")))         									 
 fwrite(q_val_dt, pff("data/005C_qvaldt_100KBerrorwindows.csv"))
 
-#Get dt for 17 core cancer types
+#Get q-value data table for 17 core cancer types
 cancer_types_to_keep = c("Breast-AdenoCa", "Prost-AdenoCA", "Kidney-RCC", "Skin-Melanoma", 
 						 "Uterus-AdenoCA","Eso-AdenoCa", 
 						 "Stomach-AdenoCA","CNS-GBM", "Lung-SCC", "ColoRect-AdenoCA", "Biliary-AdenoCA", 
@@ -60,7 +67,7 @@ qval_dt_core = q_val_dt[,.SD,.SDcols = cancer_types_to_keep]
 sum(rowSums(qval_dt_core < 0.05, na.rm = T) > 0, na.rm = T)
 # 1570
 
-#Get number of windows significant for each cancer type (overlapping)
+#Get number of windows significant for each cancer type (could be overlapping)
 num_sig = apply(qval_dt_core, 2, function(x) sum(x < 0.05, na.rm = T))
 num_sig				
 #   Breast-AdenoCa    Prost-AdenoCA       Kidney-RCC    Skin-Melanoma 

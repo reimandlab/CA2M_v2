@@ -1,25 +1,35 @@
-source("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/000_HEADER.R")
+source("000_HEADER.R")
 
+#Get paths to model accuracies predicting signature-based mutation counts
 filepaths = list.files(pff("data/004A_Sig_RF_Results"), 
 					   full.names = T)
+
+#Get names of cohorts
 cohort_names = unlist(lapply(list.files(pff("data/004A_Sig_RF_Results")),
                             function(x) unlist(strsplit(x ,split = ".csv"))[1]))			 
-		 
+
+#Get data for plot for eahc cancer type							 
 get_plot_data = function(cohort_name){
-    print(cohort_name)
-
+	
+	#Load in model accuracy data for signature-based analysis
     data = fread(filepaths[which(cohort_names == cohort_name)])
-                            
+    
+	#Get names of all signatures in analysis
     Sigs = fread(paste0(pff("data/001I_PCAWG_sigs_new/"), cohort_name, ".csv"))[,-c(1,2)]
-    Sigs_to_keep =  colnames(Sigs[,.SD, .SDcols = which(colSums(Sigs)>20000)])
-
+    
+	#Keep only signatures with > 20,000 mutations
+	Sigs_to_keep =  colnames(Sigs[,.SD, .SDcols = which(colSums(Sigs)>20000)])
+	
+	#Get adjusted R2 of models predicting binned mutation counts in signatures of interest
     Adj_R2 = as.numeric(data[1,.SD,.SDcols = Sigs_to_keep])
-
+	
+	#Get total number of mutations for signatures of interest
     get_mut_num = function(SBS){
 		n_mut = sum(Sigs[[SBS]])
 		return(n_mut)}
     mut_nums = unlist(lapply(Sigs_to_keep, get_mut_num))
 	
+	#Combine plot data into data frame
     plot_dt = cbind.data.frame(cohort_name = rep(cohort_name, length(Sigs_to_keep)), 
 							   signature = Sigs_to_keep, 
 							   mut_nums, 
@@ -30,6 +40,7 @@ get_plot_data = function(cohort_name){
                             
 }
 
+#Get plot data for cancer types of interest							 
 cancer_types_to_keep = c("Breast-AdenoCa", "Prost-AdenoCA", "Kidney-RCC", "Skin-Melanoma", 
 						 "Uterus-AdenoCA","Eso-AdenoCa", 
 						 "Stomach-AdenoCA","CNS-GBM", "Lung-SCC", "ColoRect-AdenoCA", "Biliary-AdenoCA", 
@@ -38,7 +49,8 @@ cancer_types_to_keep = c("Breast-AdenoCa", "Prost-AdenoCA", "Kidney-RCC", "Skin-
 
 full_plot_dt = as.data.table(do.call("rbind.data.frame", 
 									 lapply(cancer_types_to_keep, get_plot_data)))  
-                            		 
+ 
+#Assign etiology categories to signatuires of interest							 
 etiology_dt = as.data.table(cbind.data.frame(
     etiology = c(rep("APOBEC enzyme activity", 2), 
 				 rep("Defective DNA repair", 4), 
@@ -56,7 +68,7 @@ etiology_dt = as.data.table(cbind.data.frame(
 full_plot_dt$etiologies = etiology_dt$etiology[match(full_plot_dt$signature, 
 											  etiology_dt$signature)]
                             
-#Create boxplots
+#Order etiology categories
 full_plot_dt$etiologies = factor(full_plot_dt$etiologies, 
 								 levels = c("SBS1", 
 											"APOBEC enzyme activity", 
@@ -65,18 +77,10 @@ full_plot_dt$etiologies = factor(full_plot_dt$etiologies,
 											"SBS5, SBS40",
 											"Unknown/Other"))                   
            
-
+#Define endogenous categories of signatures
 endogenous_etiologies = c("APOBEC enzyme activity", "Defective DNA repair", "SBS1")							 
-p_val_1 = wilcox.test(full_plot_dt[etiologies %in% endogenous_etiologies]$Adj_R2, 
-					  full_plot_dt[etiologies == "Exogenous/Carcinogen"]$Adj_R2)$p.val
-p_val_2 = wilcox.test(full_plot_dt[etiologies %in% endogenous_etiologies]$Adj_R2, 
-					  full_plot_dt[etiologies == "SBS5, SBS40"]$Adj_R2)$p.val	
-p_val_3 = wilcox.test(full_plot_dt[etiologies %in% endogenous_etiologies]$Adj_R2, 
-					  full_plot_dt[etiologies == "Unknown/Other"]$Adj_R2)$p.val	
-							 
-							 
-							 
-#Run ANOVA tests to account for mutation burden of signatures
+ 
+#Run ANOVA tests (significant difference in prediction accuracy between etiologies) to account for mutation burden of signatures
 full_plot_dt$class = factor(ifelse(full_plot_dt$etiologies %in% endogenous_etiologies, 
 								   "endogenous", as.character(full_plot_dt$etiologies)))
 
@@ -107,7 +111,7 @@ H1 = lm(Adj_R2 ~ mut_nums + class,
 							 
 pval_anova_3 = anova(H0, H1)$`Pr(>F)`[2]									 
 							 
-#Keep certain labels
+#Keep certain labels for boxplots
 labels_to_keep = c("Skin-Melanoma\nSBS7a", 
 				   "Lung-AdenoCA\nSBS4", 
 				   "Lung-AdenoCA\nSBS40", 
@@ -134,7 +138,8 @@ full_plot_dt$labels = paste0(full_plot_dt$cohort_name,
 							full_plot_dt$signature)     
 full_plot_dt$labels_to_keep = ifelse(full_plot_dt$labels %in% labels_to_keep, 
 									 full_plot_dt$labels, 
-									 "")           							 							 
+									 "") 
+#Plot boxplot							 
 pos = position_jitter(width = 0.3, seed = 5)                        
 pdf(pff("data/004H_etiology_boxplots.pdf"), width = 6, height = 4)                        
 ggboxplot(full_plot_dt, 
