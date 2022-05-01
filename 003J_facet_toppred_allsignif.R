@@ -1,4 +1,4 @@
-source("000_HEADER.R")
+source("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/000_HEADER.R")
 
 #Load in predictor importances for normal RF models
 importance = fread(pff("data/003A_feature_importances_allpreds.csv"))
@@ -20,7 +20,7 @@ bootstrap_cancer_types = unlist(lapply(list.files(pff("data/003C_Feature_importa
 												  function(x) unlist(strsplit(x, split = ".csv"))[1]))
 									   
 #Function to plot barplots of importances for top N predictors for specific cohort
-get_plot_data = function(cohort_name, top_N_predictors){
+get_plot_data = function(cohort_name){
 
 	#Get predictor importances from permutation test
     permutation_importances_dt = as.data.table(do.call("rbind.data.frame", 
@@ -34,17 +34,11 @@ get_plot_data = function(cohort_name, top_N_predictors){
 	
 	#Get permutation test p-values for each predictor (fraction of times permuted importance is more significant than actual importance)
     predictor_pvals = unlist(lapply(1:length(predictors), 
-									function(x)  sum(data[x] < permutation_importances_dt[[x]])/1000))
-	
-	print(cohort_name)
-	print(sum(predictor_pvals == 0))								
+									function(x)  sum(data[x] < permutation_importances_dt[[x]])/1000))							
 									
 	#Predictor are significant if they are more important all 1000 permuted values
     significance = ifelse(predictor_pvals == 0, "*", "")
     names(significance) = predictors
-	
-	#Keep top N significant predictors								
-	top_N_predictors = min(top_N_predictors, sum(significance == "*"))
 	
 	#Get predictor importances from bootstrap test
     Bootstrap_dt = as.data.table(do.call("rbind.data.frame", 
@@ -56,11 +50,11 @@ get_plot_data = function(cohort_name, top_N_predictors){
     
 	#Rank significant predictors by bootstrap mean
 	top_predictors = names(sig_predictor_means[order(sig_predictor_means, 
-													 decreasing = T)][1:top_N_predictors])
+													 decreasing = T)])
 										
 	#Get predictor importance means and sd from bootstrap experiment for each significant predictor                     
     top_predictor_means = as.numeric(sig_predictor_means[order(sig_predictor_means, 
-															   decreasing = T)][1:top_N_predictors])
+															   decreasing = T)])
     top_predictor_SDs = unlist(lapply(top_predictors, function(x) sd(Bootstrap_dt[[x]])))								
 
     #Get predictor categories from supplementary file
@@ -83,7 +77,7 @@ get_plot_data = function(cohort_name, top_N_predictors){
 	top_predictor_descriptions = predictor_descriptions$Predictor_descriptions[match(top_predictors, predictor_descriptions$Predictor_names)]	
 	
 	#Some predictor names are duplicated so just make these unique								   
-	if(length(unique(top_predictors)!=top_N_predictors)){
+	if(length(unique(top_predictors))!=length(top_predictors)){
 		top_predictors[duplicated(top_predictors)] = paste0(top_predictors[duplicated(top_predictors)],"2")
 	}
 	
@@ -94,7 +88,8 @@ get_plot_data = function(cohort_name, top_N_predictors){
 
 	#Create data table for plotting                         
 	results.m = as.data.table(cbind.data.frame(value = top_predictor_means, 
-										   variable = top_predictors, 
+										   variable = top_predictors,
+											description = top_predictor_descriptions,
 										   SD = top_predictor_SDs, 
 										   significance = rep("*", length(top_predictors)), 
 										   fill = top_predictor_fill))
@@ -121,10 +116,10 @@ get_plot_data = function(cohort_name, top_N_predictors){
     if(min >= 0){min = 0}								 
 	
 	#Keep barplot facet order                                 
-    results.m$facet=rep(cohort_name, top_N_predictors)
+    results.m$facet=rep(cohort_name, length(top_predictors))
     results.m$order=match(results.m$variable, top_predictors)+i
     results.m$order_infacet=match(results.m$variable, top_predictors)
-    i <<- i+5
+    i <<- i+length(top_predictors)
 									   
 	return(results.m)
 }
@@ -139,29 +134,28 @@ cancer_types_to_keep = c("Breast-AdenoCa", "Prost-AdenoCA", "Kidney-RCC", "Skin-
 						   "Lymph-BNHL",  "Liver-HCC", "Thy-AdenoCA")	
 #Get plot data for all cancer types									   
 plot_dt = as.data.table(do.call("rbind.data.frame",
-	lapply(cancer_types_to_keep,  get_plot_data, 5)))         									   
+	lapply(cancer_types_to_keep,  get_plot_data)))         									   
 
 								   
-plot_dt_select = plot_dt[facet %in% cancer_types_to_keep]
-plot_dt_select$facet = factor(plot_dt_select$facet, levels = cancer_types_to_keep)									   
+plot_dt$facet = factor(plot_dt$facet, levels = cancer_types_to_keep)									   
 									   
 #Set fill colors								 
 fill_colours = c("#FFC300", "#58D68D", "#2980B9", "#FF3352",
 				 "#9A7d0A", "#186A3B", "#6C3483", "#922B21")
 
 #Get x axis labels
-labels = as.character(plot_dt_select$description[match(unique(plot_dt_select$order), 
-													   plot_dt_select$order)])									   
-names(labels) = unique(plot_dt_select$order)  									   
+labels = as.character(plot_dt$description[match(unique(plot_dt$order), 
+													   plot_dt$order)])									   
+names(labels) = unique(plot_dt$order)  									   
 									   
 #Plot barplot without legend
-pdf(pff("/data/003E_top_pred_facet_barplots.pdf"), width = 12, height = 8)
-ggplot(plot_dt_select, aes(x = factor(order), 
+pdf(pff("/data/003J_top_pred_facet_barplots_allsignificant.pdf"), width = 12, height = 10)
+ggplot(plot_dt, aes(x = factor(order), 
 						  y = value, 
 						  label = significance, 
 						  fill = fill,
 						  group = factor(order)))+
-	facet_wrap(~facet, nrow = 3, scales = "free")+ #Facet wrap cancer types
+	facet_wrap(~facet, nrow = 4, scales = "free")+ #Facet wrap cancer types
 	geom_bar(stat = "identity", color = "black")+ #Add barplots
 	geom_text(aes(y=value+SD+SD/8), colour = "black", size = 6)+ #Add significance
 	geom_errorbar(aes(ymin = value - SD, ymax = value + SD), width=.2, #Add errorbars
@@ -183,61 +177,27 @@ ggplot(plot_dt_select, aes(x = factor(order),
 	geom_blank(aes(y = value+SD+SD/2)) #Control y-axis scale
 dev.off()
 									   
-#Plot barplot  legend									   
-p1_legend = ggplot(plot_dt_select, aes(x = factor(order), 
-						  y = value, 
-						  label = significance, 
-						  fill = fill,
-						  group = factor(order)))+
-	facet_wrap(~facet, nrow = 3, scales = "free")+
-	geom_bar(stat = "identity", color = "black")+
-	geom_text(aes(y=value+SD+SD/8), colour = "black", size = 6)+
-	geom_errorbar(aes(ymin = value - SD, ymax = value + SD), width=.2,
-			 position=position_dodge(.9))+
-	theme_bw()+
-	theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size=  8, colour = "black"),
-        axis.title = element_text(size = 10, face = "bold"),
-        axis.text.y = element_text(size = 6, colour = "black"),
-        strip.text = element_text(size = 8, colour = "black", face = "bold"),
-        legend.text = element_text(size = 9, colour = "black"),
-        legend.title = element_text(size = 10, face = "bold"),
-        legend.key.size = unit(0.5, "cm"))+	
-		  labs(x = "Predictor", 
-		 y = "Importance (Mean increase MSE)", 
-		 fill = "Predictor category")+
-	scale_fill_manual(drop = F, values = fill_colours)+
-    scale_x_discrete(breaks = names(labels), labels = labels)+
-	geom_blank(aes(y = value+SD+SD/2))
-												   
-
-legend_full <- cowplot::get_legend(p1_legend)
-
-pdf(pff("/data/003E_top_pred_facet_barplots_legend.pdf"), width = 4, height = 4)
-grid.newpage()             
-grid.draw(legend_full)                                      
-dev.off()              											   
-									   								   									   
-#Calculate enrichment of primary cancers among the 85 top predictors
+#Calculate enrichment of primary cancers among the significant predictors
 
 #Get names of all predictors									   
-all_predictors = colnames(Preds)
+all_predictors = predictor_descriptions$Predictor_names
 									   
-#Get top 5 predictors in core 17 cancer types (some repeat)									   
-top_85_predictors = as.character(plot_dt_select$variable)
+#Get significant predictors in core 17 cancer types (some repeat)									   
+significant_predictors = as.character(plot_dt$variable)
 									   
 #Get which predictors are primary cancer									   
-cancer_CA_predictors = colnames(fread(pff("data/001G_PrimaryTumor_preds_1MB.csv"))[,-c(1,2)])
+cancer_CA_predictors = predictor_descriptions[Predictor_categories == "Primary cancer"]$Predictor_names
 
-#Get which of top 85 predictors are from primary cancer samples									   
-top_cancer = sum(top_85_predictors %in% cancer_CA_predictors)
+#Get which of significant predictors are from primary cancer samples									   
+top_cancer = sum(significant_predictors %in% cancer_CA_predictors)
 									   
-#Get which of top 85 predictors are not from primary cancer samples									   									   
-top_noncancer = length(top_85_predictors) - top_cancer
+#Get which of significant predictors are not from primary cancer samples									   									   
+top_noncancer = length(significant_predictors) - top_cancer
 
-#Get which of non-top 85 predictors are from primary cancer samples
+#Get which of non-significant predictors are from primary cancer samples
 nontop_cancer = length(cancer_CA_predictors) - top_cancer
 									   
-#Get which of non-top 85 predictors are not from primary cancer samples									   
+#Get which of non-significant predictors are not from primary cancer samples									   
 nontop_noncancer = length(all_predictors) - top_cancer - top_noncancer - nontop_cancer									   									   
 
 #Create contingency table
@@ -245,21 +205,21 @@ cont_table = matrix(c(top_cancer, top_noncancer,
 					  nontop_cancer, nontop_noncancer),
 					nrow = 2)
 rownames(cont_table) = c("Cancer", "Non-cancer")
-colnames(cont_table) = c("Top", "Non-top")
+colnames(cont_table) = c("Significant", "Non-significant")
 
 #Get Fisher's exact test p-value and expected value for enrichment of primary cancer predictors 
 # among top predictors in core 17 cancer types									   
 p_val = fisher.test(cont_table,
 					alternative = "g")$p.val
 p_val												 
-# [1] 0.00112049		
+# [1] 8.681534e-08		
 													 
-Expected_value = (length(top_85_predictors) * length(cancer_CA_predictors))/ length(all_predictors)
-Expected_value	#Expected number of primary cancer predictors in top 85	
+Expected_value = (length(significant_predictors) * length(cancer_CA_predictors))/ length(all_predictors)
+Expected_value	#Expected number of primary cancer predictors in significant
 
-# 41.17952
+# 80.42117
 									   
-Observed value = top_cancer
-Observed #Observed number of primary cancer predictors in top 85
+Observed_value = top_cancer
+Observed_value #Observed number of primary cancer predictors in top 85
 
-#55									   
+#111									   

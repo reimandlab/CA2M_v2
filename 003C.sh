@@ -1,5 +1,5 @@
 #!/bin/bash
-for (( i = 1; i <= 26; i++ ))
+for (( i = 1; i <= 17; i++ ))
 do  
     for (( b = 1; b <= 10; b++ ))
     do  

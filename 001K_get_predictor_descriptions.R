@@ -1,4 +1,4 @@
-source("000_HEADER.R")
+source("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/000_HEADER.R")
 
 #Load in all megabase-scale predictors
 TCGA_ATAC = fread(pff("data/001C_TCGA_ATACSeq_1MBwindow_processed.csv"))[,-c(1,2)]
@@ -17,7 +17,7 @@ TCGA_ATAC_categories = rep("Primary cancer", ncol(TCGA_ATAC))
 
 ENCODE_ATAC_descriptions = colnames(ENCODE_ATAC)
 ENCODE_ATAC_categories = rep("Normal tissue", ncol(ENCODE_ATAC))
-ENCODE_ATAC_categories[c(3, 7, 12, 54, 90, 100, 107, 180, 181)] = "Cancer cell line"
+ENCODE_ATAC_categories[c(5, 9, 14, 56, 92, 102, 109, 182, 183)] = "Cancer cell line"
 
 GEO_Brain_descriptions = colnames(fread(paste0(input_data_dir, "Brain_GEO_descriptions.txt")))
 GEO_Brain_categories = rep("Normal tissue", ncol(GEO_Brain_ATAC))

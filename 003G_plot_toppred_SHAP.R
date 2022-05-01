@@ -1,4 +1,4 @@
-source("000_HEADER.R")
+source("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/000_HEADER.R")
 
 #Load in required python packages to load and plot SHAP values using reticulate
 library(reticulate)
@@ -33,23 +33,19 @@ SHAP_cancer_types = unlist(lapply(list.files(pff("data/003F_RF_SHAP_Results/")),
 #Load in predictors
 Preds = fread(pff("data/001G_All_preds_1MB.csv"))[, -c(1,2)]
 
-#Function to plot SHAP violin plots of importances for top N predictors for specific cohort       
-plot_SHAP_plot = function(cohort_index, top_N_predictors){
+plot_SHAP_plot = function(cohort_name){
    	
-	#Get cohort name
-	print(cohort_index)
-	cohort_name = colnames(importance)[-1][cohort_index]
-	
-	#Get predictor names
-	predictors = importance[[1]]
-	
-	#Get predictor importances
-    data = importance[[cohort_index + 1]]
-	
+	print(cohort_name)
 	#Get predictor importances from permutation test
     permutation_importances_dt = as.data.table(do.call("rbind.data.frame", 
 									 lapply(list.files(p_val_paths[which(p_val_cancer_types == cohort_name)], 
 													   full.name = T), fread)))
+	#Get predictor names
+	predictors = colnames(permutation_importances_dt)
+	
+	#Get predictor importances
+    data = importance[[cohort_name]][match(predictors, importance[[1]])]
+	
 	#Get permutation test p-values for each predictor (fraction of times permuted importance is more significant than actual importance)
     predictor_pvals = unlist(lapply(1:length(predictors), 
 									function(x)  sum(data[x] < permutation_importances_dt[[x]])/1000))
@@ -58,9 +54,6 @@ plot_SHAP_plot = function(cohort_index, top_N_predictors){
     significance = ifelse(predictor_pvals == 0, "*", "")
     names(significance) = predictors
 									
-	#Keep top N significant predictors								
-	top_N_predictors = min(top_N_predictors, sum(significance == "*"))
-	
 	#Get predictor importances from bootstrap test
     Bootstrap_dt = as.data.table(do.call("rbind.data.frame", 
 										 lapply(list.files(bootstrap_paths[which(bootstrap_cancer_types == cohort_name)], 
@@ -71,11 +64,11 @@ plot_SHAP_plot = function(cohort_index, top_N_predictors){
     
 	#Rank significant predictors by bootstrap mean
 	top_predictors = names(sig_predictor_means[order(sig_predictor_means, 
-													 decreasing = T)][1:top_N_predictors])
+													 decreasing = T)])
 										
 	#Get predictor importance means and sd from bootstrap experiment for each significant predictor                     
     top_predictor_means = as.numeric(sig_predictor_means[order(sig_predictor_means, 
-															   decreasing = T)][1:top_N_predictors])
+															   decreasing = T)])
     top_predictor_SDs = unlist(lapply(top_predictors, function(x) sd(Bootstrap_dt[[x]])))								
 
     #Get predictor categories from supplementary file
@@ -99,27 +92,37 @@ plot_SHAP_plot = function(cohort_index, top_N_predictors){
 	
     #Load in SHAP values
     SHAP_dt = fread(SHAP_paths[which(SHAP_cancer_types == cohort_name)])
-										
+	
+	#Remove hypermutated windows for Lymph CLL and BNHL
+    if(cohort_name %in% c("Lymph-CLL", "Lymph-BNHL")){
+        Preds = Preds[-c(292, 2438)]
+    }
+									   
     #Keep SHAP values for top predictors
     SHAP_dt_top = SHAP_dt[,.SD,.SDcols = top_predictors]
     colnames(SHAP_dt_top) = top_predictor_descriptions
-    Input_top = Preds[,.SD,.SDcols = top_predictors]                                  
-    colnames(Input_top) = top_predictor_descriptions
+    Input_top = as.data.table(apply(Preds[,.SD, .SDcols = top_predictors], 2, function(x) scale(log(1+x)) ))
+    colnames(Input_top) = top_predictor_descriptions  
+										
     
     #Plot SHAP summary plot                                  
     fig = plt$figure(figsize = c(3, 3))
     shap$summary_plot(data.matrix(SHAP_dt_top), 
 					  Input_top, 
 					  show = F,
-					  sort = F, 
-					  max_display = 5L)
+					  sort = F)
     plt$title(cohort_name)
     pdf$savefig(fig, bbox_inches = "tight")                                  
                                       
 }
                                       
-#Get SHAP plots for all cancer types                                      
+#Get SHAP vs. CA data for core cancer types
+cancer_types_to_keep = c("Breast-AdenoCa", "Prost-AdenoCA", "Kidney-RCC", "Skin-Melanoma", 
+						 "Uterus-AdenoCA","Eso-AdenoCa", 
+						 "Stomach-AdenoCA","CNS-GBM", "Lung-SCC", "ColoRect-AdenoCA", "Biliary-AdenoCA", 
+						 "Head-SCC", "Lymph-CLL", "Lung-AdenoCA",
+						   "Lymph-BNHL",  "Liver-HCC", "Thy-AdenoCA")	
 plt$close()                           
 pdf = backend$PdfPages(pff("data/003G_toppred_SHAP_plots.pdf"))                          
-lapply(seq(26)[-8], plot_SHAP_plot, 5)     
+lapply(cancer_types_to_keep, plot_SHAP_plot)     
 pdf$close()                                                               

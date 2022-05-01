@@ -1,6 +1,6 @@
-home_dir = ""
+home_dir = "/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/"
 setwd(home_dir)
-input_data_dir = ""
+input_data_dir = "/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/INPUT_DATA/"
 
 PCAWG_MAF_path = ""
 

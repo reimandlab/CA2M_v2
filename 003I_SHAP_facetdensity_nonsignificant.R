@@ -33,9 +33,10 @@ SHAP_cancer_types = unlist(lapply(list.files(pff("data/003F_RF_SHAP_Results/")),
 #Load in predictors
 Preds = fread(pff("data/001G_All_preds_1MB.csv"))[, -c(1,2)]
 
+								  
 #Get data for SHAP vs. CA plot								  
 plot_SHAP_plot = function(cohort_name){
-   	
+
 	print(cohort_name)
 	#Get predictor importances from permutation test
     permutation_importances_dt = as.data.table(do.call("rbind.data.frame", 
@@ -49,47 +50,52 @@ plot_SHAP_plot = function(cohort_name){
 	
 	#Get permutation test p-values for each predictor (fraction of times permuted importance is more significant than actual importance)
     predictor_pvals = unlist(lapply(1:length(predictors), 
-									function(x)  sum(data[x] < permutation_importances_dt[[x]])/1000))          
-    
-	#Rank significant predictors by bootstrap mean
-	top_predictors = predictors[which(predictor_pvals == 0)]
-					
-	#Get predictor descriptions								   
-	top_predictor_descriptions = predictor_descriptions$Predictor_descriptions[match(top_predictors, predictor_descriptions$Predictor_names)]	
-	
-    #Load in SHAP values
-    SHAP_dt = fread(SHAP_paths[which(SHAP_cancer_types == cohort_name)])
-	
+									function(x)  sum(data[x] < permutation_importances_dt[[x]])/1000))				
+	significance = ifelse(predictor_pvals == 0, "Significant", "Non-Significant")
+																
+
 	#Remove hypermutated windows for Lymph CLL and BNHL
     if(cohort_name %in% c("Lymph-CLL", "Lymph-BNHL")){
         Preds = Preds[-c(292, 2438)]
     }
-									   
-    #Keep SHAP values for top predictors
-    SHAP_dt_top = SHAP_dt[,.SD,.SDcols = top_predictors]
-    colnames(SHAP_dt_top) = top_predictor_descriptions
-    Input_top = as.data.table(apply(Preds[,.SD, .SDcols = top_predictors], 2, function(x) scale(log(1+x)) ))
-    colnames(Input_top) = top_predictor_descriptions  
+			
+    #Load in SHAP values
+    SHAP_dt = fread(SHAP_paths[which(SHAP_cancer_types == cohort_name)])
+			   
+    Input_dt = as.data.table(apply(Preds, 2, function(x) scale(log(1+x)) ))
 										
     #Create tall format                                  
-    SHAP_dt.m = melt(SHAP_dt_top)
-    Input_dt.m = melt(Input_top)
+    SHAP_dt.m = melt(SHAP_dt)
+    Input_dt.m = melt(Input_dt)
                                       
     #Combine to final dt
     plot_dt.m = as.data.table(cbind.data.frame(variable = SHAP_dt.m$variable, 
 											   Input = Input_dt.m$value, 
 											   SHAP = SHAP_dt.m$value, 
                                              cohort_name = rep(cohort_name, 
-																nrow(Input_dt.m))))
-									
-	plot_dt.m$type = predictor_descriptions$Predictor_categories[match(plot_dt.m$variable, predictor_descriptions$Predictor_descriptions)]									
-    
+																nrow(Input_dt.m)), 
+											   significance = significance[match(SHAP_dt.m$variable, predictors)]))
+								   
+	
+	#Downsample non-significant predictors						   
+	set.seed(1)
+	non_sig_to_keep = sample(predictors[which(predictor_pvals > 0.2)], sum(predictor_pvals == 0))															   
+	plot_dt.m = plot_dt.m[variable %in% c(predictors[which(predictor_pvals == 0)], non_sig_to_keep)]							   
+								   
+								   
+	plot_dt.m$variable = predictor_descriptions$Predictor_descriptions[match(plot_dt.m$variable, predictor_descriptions$Predictor_names)]
+	plot_dt.m$type = predictor_descriptions$Predictor_categories[match(plot_dt.m$variable, predictor_descriptions$Predictor_descriptions)]
+	
+															   
+								   
     return(plot_dt.m)}
                                       
 #Get SHAP vs. CA data for all cancer types
-cancer_types_to_keep = c("Breast-AdenoCa", "Prost-AdenoCA", "Kidney-RCC", "Skin-Melanoma", 
+cancer_types_to_keep = c("Breast-AdenoCa", "Prost-AdenoCA", 
+						 "Kidney-RCC", "Skin-Melanoma", 
 						 "Uterus-AdenoCA","Eso-AdenoCa", 
-						 "Stomach-AdenoCA","CNS-GBM", "Lung-SCC", "ColoRect-AdenoCA", "Biliary-AdenoCA", 
+						 "Stomach-AdenoCA","CNS-GBM", "Lung-SCC", 
+						 "ColoRect-AdenoCA", "Biliary-AdenoCA", 
 						 "Head-SCC", "Lymph-CLL", "Lung-AdenoCA",
 						   "Lymph-BNHL",  "Liver-HCC", "Thy-AdenoCA")	
 plot_dt = as.data.table(do.call("rbind.data.frame",lapply(cancer_types_to_keep, plot_SHAP_plot)))
@@ -97,7 +103,6 @@ plot_dt = as.data.table(do.call("rbind.data.frame",lapply(cancer_types_to_keep, 
 #Separate data based on predictor type 									
 plot_dt_primarycancer = plot_dt[type == "Primary cancer"]
 plot_dt_normal_tissue = plot_dt[type == "Normal tissue"]									
-plot_dt_cancer_cell_line = plot_dt[type == "Cancer cell line"]
 									
 plot_dt_RT = plot_dt[type == "RT"]
 phases = unlist(lapply(as.character(plot_dt_RT$variable), 
@@ -109,35 +114,56 @@ plot_dt_RT_late = plot_dt_RT[which(phases %in% c("S3", "S4", "G2"))]
 #Create faceted plot for different predictor types (data.table long-form)
 plot_dt_facet = as.data.table(rbind.data.frame(plot_dt_primarycancer,
 											   plot_dt_normal_tissue,
-											   plot_dt_cancer_cell_line,
 											   plot_dt_RT_early,
 											   plot_dt_RT_late))
 									
-plot_dt_facet$facet = c(rep("Primary cancer", nrow(plot_dt_primarycancer)),
+plot_dt_facet$category = c(rep("Primary cancer", nrow(plot_dt_primarycancer)),
 						rep("Normal tissue", nrow(plot_dt_normal_tissue)),
-						rep("Cancer cell line", nrow(plot_dt_cancer_cell_line)),
 						rep("RT Early", nrow(plot_dt_RT_early)), 
 						rep("RT Late", nrow(plot_dt_RT_late)))
-					   
-cor_dt = cbind.data.frame(facet = c("Primary cancer", "Normal tissue", "RT Early", "RT Late"),
-						  label = c(cor(plot_dt_primarycancer$Input, plot_dt_primarycancer$SHAP, method = "pearson"),
-							cor(plot_dt_normal_tissue$Input, plot_dt_normal_tissue$SHAP, method = "pearson"),
-							cor(plot_dt_RT_early$Input, plot_dt_RT_early$SHAP, method = "pearson"), 
-							cor(plot_dt_RT_late$Input, plot_dt_RT_late$SHAP, method = "pearson")))
 
+					   
+cor_dt = cbind.data.frame(category = c("Primary cancer", "Normal tissue", "RT Early", "RT Late", 
+									   "Primary cancer", "Normal tissue", "RT Early", "RT Late"),
+						  significance = c(rep("Significant", 4,), rep("Non-Significant", 4)),
+						  label = c(cor(plot_dt_primarycancer[significance == "Significant"]$Input, 
+										plot_dt_primarycancer[significance == "Significant"]$SHAP, method = "spearman"),
+							cor(plot_dt_normal_tissue[significance == "Significant"]$Input, 
+								plot_dt_normal_tissue[significance == "Significant"]$SHAP, method = "spearman"),
+							cor(plot_dt_RT_early[significance == "Significant"]$Input, 
+								plot_dt_RT_early[significance == "Significant"]$SHAP, method = "spearman"), 
+							cor(plot_dt_RT_late[significance == "Significant"]$Input, 
+								plot_dt_RT_late[significance == "Significant"]$SHAP, method = "spearman"), 
+							cor(plot_dt_primarycancer[significance == "Non-Significant"]$Input, 
+										plot_dt_primarycancer[significance == "Non-Significant"]$SHAP, method = "spearman"),
+							cor(plot_dt_normal_tissue[significance == "Non-Significant"]$Input, 
+								plot_dt_normal_tissue[significance == "Non-Significant"]$SHAP, method = "spearman"),
+							cor(plot_dt_RT_early[significance == "Non-Significant"]$Input, 
+								plot_dt_RT_early[significance == "Non-Significant"]$SHAP, method = "spearman"), 
+							cor(plot_dt_RT_late[significance == "Non-Significant"]$Input, 
+								plot_dt_RT_late[significance == "Non-Significant"]$SHAP, method = "spearman")))
+					   
 #Plot SHAP vs. CA density plot					   
-plot_dt_facet$facet = factor(plot_dt_facet$facet, 
-							 levels = c("Primary cancer", "Normal tissue", "RT Early", "RT Late"))									
-pdf(pff("data/003H_SHAP_facet_densityplot.pdf"), height = 3, width = 8.5)                                      
-ggplot(na.omit(plot_dt_facet), aes(y = Input, x = SHAP))+
-	facet_wrap(~facet, scales = "free", nrow = 1, drop = T)+ #Facet based on predictor type
-    geom_hex(bins = 50)+ #Add hexagonal desnity plot
-    geom_smooth(method = "lm", se = F)+ #Add loess smooth line
+plot_dt_facet$category = factor(plot_dt_facet$category, 
+							 levels = c("Primary cancer", "Normal tissue", "RT Early", "RT Late"))		
+plot_dt_facet$significance = factor(plot_dt_facet$significance, 
+							 levels = c("Significant", "Non-Significant"))	
+					   
+cor_dt$category = factor(cor_dt$category, 
+							 levels = c("Primary cancer", "Normal tissue", "RT Early", "RT Late"))		
+cor_dt$significance = factor(cor_dt$significance, 
+							 levels = c("Significant", "Non-Significant"))	
+					   
+pdf(pff("data/003I_SHAP_facet_densityplot_nonsignificant.pdf"))                                      
+ggplot((plot_dt_facet), aes(y = Input, x = SHAP))+
+	facet_grid(significance ~ category, scales = "free", switch = "y")+ #Facet based on predictor type
+    geom_hex(bins = 50)+ #Add hexagonal density plot
+    geom_smooth(method = "loess",span = 0.6, se = FALSE)+ #Add loess smooth line
     theme_bw()+
     scale_fill_gsea()+ #Control colours
 	labs(y = "Input(log1p, scaled)") + 
 	geom_text(data = cor_dt,
-		  mapping = aes(x = -Inf, y = Inf, label = paste0("r=", round(label,2))),
+		  mapping = aes(x = -Inf, y = Inf, label = paste0("rho=", round(label,2))),
 		  hjust   = -0.1,
 		  vjust   = 1.4,
 			color = "red")
@@ -145,19 +171,19 @@ dev.off()
 
 #Correlations for the different plots
 cor(plot_dt_primarycancer$Input, plot_dt_primarycancer$SHAP, method = "spearman")
-# [1] -0.6626878
+# [1] -0.1079348
 cor.test(plot_dt_primarycancer$Input, plot_dt_primarycancer$SHAP, method = "spearman")$p.val
 # [1] 0
 cor(plot_dt_normal_tissue$Input, plot_dt_normal_tissue$SHAP, method = "spearman")
-# [1] -0.7203573
+# [1] -0.03155112
 cor.test(plot_dt_normal_tissue$Input, plot_dt_normal_tissue$SHAP, method = "spearman")$p.val
 # [1] 0	
 cor(plot_dt_RT_early$Input, plot_dt_RT_early$SHAP, method = "spearman")
-# [1] -0.7807336
+# [1] -0.7053419
 cor.test(plot_dt_RT_early$Input, plot_dt_RT_early$SHAP, method = "spearman")$p.val
 # [1] 0									
 cor(plot_dt_RT_late$Input, plot_dt_RT_late$SHAP, method = "spearman")
-# [1] 0.7109059
+# [1] 0.4395361
 cor.test(plot_dt_RT_late$Input, plot_dt_RT_late$SHAP, method = "spearman")$p.val
 # [1] 0													
 									

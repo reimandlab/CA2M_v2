@@ -3,7 +3,7 @@ args = commandArgs(trailingOnly = TRUE)
 cohort_index = as.integer(args[1])
 block = as.integer(args[2])
 
-source("000_HEADER.R")
+source("/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/bin/000_HEADER.R")
 
 #Load in predictors
 Preds = fread(pff("data/001G_All_preds_1MB.csv"))[, -c(1,2)]
@@ -12,7 +12,12 @@ Preds = fread(pff("data/001G_All_preds_1MB.csv"))[, -c(1,2)]
 mutation_counts_dt = fread(pff("data/001B_PCAWG_mutation_counts_1MBwindow_processed.csv"))[,-c(1, 2)]
 
 #Get name of cohort based on index
-project_code = colnames(mutation_counts_dt)[cohort_index] 
+cancer_types_to_keep = c("Breast-AdenoCa", "Prost-AdenoCA", "Kidney-RCC", "Skin-Melanoma", 
+						 "Uterus-AdenoCA","Eso-AdenoCa", 
+						 "Stomach-AdenoCA","CNS-GBM", "Lung-SCC", "ColoRect-AdenoCA", "Biliary-AdenoCA", 
+						 "Head-SCC", "Lymph-CLL", "Lung-AdenoCA",
+						   "Lymph-BNHL",  "Liver-HCC", "Thy-AdenoCA")	
+project_code = cancer_types_to_keep[cohort_index] 
 
 #Output of RF model is binned mutatation count of cohort
 output = mutation_counts_dt[[project_code]]
