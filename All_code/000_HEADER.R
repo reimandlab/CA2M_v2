@@ -1,8 +1,12 @@
-home_dir = "/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/"
+#Paths for scripts
+home_dir = ""
 setwd(home_dir)
-input_data_dir = "/.mounts/labs/reimandlab/private/users/oocsenas/CA2M_v2/INPUT_DATA/"
-
+input_data_dir = ""
 PCAWG_MAF_path = ""
+RepliSeq_path = ""
+repliseq_supp_path = ""
+Sig_annotation_file_path = "/.mounts/labs/reimandlab/private/generated_raw_data/PCAWG/PCAWG May2016 Data Release v1 %2F v1.1 %2F v1.2 %2F v1.3 %2F v1.4 - release_may2016v1.4 (1).csv"
+PCAWG_Sigs_path = "/.mounts/labs/reimandlab/private/generated_raw_data/PCAWG/SigProfilier_PCAWG_WGS_probabilities_SBS.csv"
 
 packages = c("data.table", "ActivePathways", "parallel", "gridExtra", "grid", 
 			 "ggplot2", "mgsub", "gplots", "RColorBrewer", "GenomicRanges", 
