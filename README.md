@@ -1,6 +1,6 @@
 # Predicting regional mutation burden in cancer genomes using chromatin accessibility (CA) and replication timing (RT)
 
-This repository includes source code and processed datasets for the study: 
+This repository includes source code, tutorials, and processed datasets for the study: 
 
 _Chromatin accessibility of primary human cancers ties regional mutational processes and signatures with tissues of origin_ . 
 
@@ -14,7 +14,7 @@ Tutorials - Jupyter notebooks
 * 3_CA2M_RF.ipynb - random forest models of megabase-scale mutation burden, chromatin accessibility and replication timing
 * 4_CA2M_RF_FeatureSelection_Tutorial.ipynb - selecting significant features predicting mutation rates
 * 5_CA2M_RF_SHAPscores.ipynb - computing feature importance scores (SHAP)
-* 6_CA2M_RF_ExcessMutations_Tutorial.ipynb - detecting genomic regions with enriched mutations not explained by chromatin and replication timing alone
+* 6_CA2M_RF_EnrichedMutations_Tutorial.ipynb - detecting genomic regions with enriched mutations that are not explained by chromatin and replication timing alone
 
 Tutorials/data - files needed for tutorials
 
@@ -30,4 +30,4 @@ Tutorials/data - files needed for tutorials
 
 All_code - entire code repository for the project; use on your own responsibility
 
-oliver.ocsenas [@] gmail.com ; juri.reimand [@] utoronto.ca
+Contact: oliver.ocsenas [@] gmail.com ; juri.reimand [@] utoronto.ca
