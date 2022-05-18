@@ -30,4 +30,4 @@ Tutorials/data - files needed for tutorials
 
 All_code - entire code repository for the project; use on your own responsibility
 
-Contact: oliver.ocsenas [@] gmail.com ; juri.reimand [@] utoronto.ca
+Contact: oocsenas [@] oicr.on.ca ; juri.reimand [@] utoronto.ca
